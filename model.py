@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 
 class LayerNormalization(nn.Module):
-
+    """Layer Normalization."""
     def __init__(self, features: int, eps:float=10**-6) -> None:
         super().__init__()
         self.eps = eps
@@ -12,15 +12,15 @@ class LayerNormalization(nn.Module):
 
     def forward(self, x):
         # x: (batch, seq_len, hidden_size)
-         # Keep the dimension for broadcasting
+        # Keep the dimension for broadcasting
         mean = x.mean(dim = -1, keepdim = True) # (batch, seq_len, 1)
         # Keep the dimension for broadcasting
         std = x.std(dim = -1, keepdim = True) # (batch, seq_len, 1)
         # eps is to prevent dividing by zero or when std is very small
         return self.alpha * (x - mean) / (std + self.eps) + self.bias
-
+    
 class FeedForwardBlock(nn.Module):
-
+    """Feed Forward Block."""
     def __init__(self, d_model: int, d_ff: int, dropout: float) -> None:
         super().__init__()
         self.linear_1 = nn.Linear(d_model, d_ff) # w1 and b1
@@ -113,9 +113,10 @@ class MultiHeadAttentionBlock(nn.Module):
         return (attention_scores @ value), attention_scores
 
     def forward(self, q, k, v, mask):
-        query = self.w_q(q) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
-        key = self.w_k(k) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
-        value = self.w_v(v) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
+        # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
+        query = self.w_q(q) 
+        key = self.w_k(k) 
+        value = self.w_v(v)
 
         # (batch, seq_len, d_model) --> (batch, seq_len, h, d_k) --> (batch, h, seq_len, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
@@ -186,7 +187,7 @@ class Decoder(nn.Module):
         return self.norm(x)
 
 class ProjectionLayer(nn.Module):
-
+    """Projection layer to map the decoder output to vocabulary size."""
     def __init__(self, d_model, vocab_size) -> None:
         super().__init__()
         self.proj = nn.Linear(d_model, vocab_size)
