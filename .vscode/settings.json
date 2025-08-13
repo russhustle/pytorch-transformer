@@ -1,0 +1,6 @@
+{
+  "editor.formatOnSave": false,
+  "python.defaultInterpreterPath": "../envs/torch/.venv/bin/python3.11",
+  "python.terminal.activateEnvironment": true,
+  "python.terminal.activateEnvInCurrentTerminal": true
+}
