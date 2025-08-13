@@ -1,6 +1,15 @@
 {
-  "editor.formatOnSave": false,
+  "editor.formatOnSave": true,
   "python.defaultInterpreterPath": "../envs/torch/.venv/bin/python3.11",
   "python.terminal.activateEnvironment": true,
   "python.terminal.activateEnvInCurrentTerminal": true
+  //   "[python]": {
+  //     "editor.defaultFormatter": "ms-python.black-formatter"
+  //   },
+  //   "black-formatter.path": ["../envs/torch/.venv/bin/black"],
+  //   "black-formatter.args": [
+  //     "--line-length=9999",
+  //     "--skip-string-normalization",
+  //     "--experimental-string-processing"
+  //   ]
 }
