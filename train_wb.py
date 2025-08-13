@@ -24,6 +24,7 @@ import wandb
 
 import torchmetrics
 
+
 def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
     eos_idx = tokenizer_tgt.token_to_id('[EOS]')
@@ -46,7 +47,8 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
         prob = model.project(out[:, -1])
         _, next_word = torch.max(prob, dim=1)
         decoder_input = torch.cat(
-            [decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1
+            [decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)],
+            dim=1,
         )
 
         if next_word == eos_idx:
@@ -55,7 +57,17 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
     return decoder_input.squeeze(0)
 
 
-def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, num_examples=2):
+def run_validation(
+    model,
+    validation_ds,
+    tokenizer_src,
+    tokenizer_tgt,
+    max_len,
+    device,
+    print_msg,
+    global_step,
+    num_examples=2,
+):
     model.eval()
     count = 0
 
@@ -75,14 +87,15 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     with torch.no_grad():
         for batch in validation_ds:
             count += 1
-            encoder_input = batch["encoder_input"].to(device) # (b, seq_len)
-            encoder_mask = batch["encoder_mask"].to(device) # (b, 1, 1, seq_len)
+            encoder_input = batch["encoder_input"].to(device)  # (b, seq_len)
+            encoder_mask = batch["encoder_mask"].to(device)  # (b, 1, 1, seq_len)
 
             # check that the batch size is 1
-            assert encoder_input.size(
-                0) == 1, "Batch size must be 1 for validation"
+            assert encoder_input.size(0) == 1, "Batch size must be 1 for validation"
 
-            model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_tgt, max_len, device)
+            model_out = greedy_decode(
+                model, encoder_input, encoder_mask, tokenizer_src, tokenizer_tgt, max_len, device
+            )
 
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
@@ -91,20 +104,19 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             source_texts.append(source_text)
             expected.append(target_text)
             predicted.append(model_out_text)
-            
+
             # Print the source, target and model output
-            print_msg('-'*console_width)
+            print_msg('-' * console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
             print_msg(f"{f'TARGET: ':>12}{target_text}")
             print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
 
             if count == num_examples:
-                print_msg('-'*console_width)
+                print_msg('-' * console_width)
                 break
-    
-    
+
     # Evaluate the character error rate
-    # Compute the char error rate 
+    # Compute the char error rate
     metric = torchmetrics.CharErrorRate()
     cer = metric(predicted, expected)
     wandb.log({'validation/cer': cer, 'global_step': global_step})
@@ -119,9 +131,11 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     bleu = metric(predicted, expected)
     wandb.log({'validation/BLEU': bleu, 'global_step': global_step})
 
+
 def get_all_sentences(ds, lang):
     for item in ds:
         yield item['translation'][lang]
+
 
 def get_or_build_tokenizer(config, ds, lang):
     tokenizer_path = Path(config['tokenizer_file'].format(lang))
@@ -129,12 +143,15 @@ def get_or_build_tokenizer(config, ds, lang):
         # Most code taken from: https://huggingface.co/docs/tokenizers/quicktour
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
+        trainer = WordLevelTrainer(
+            special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2
+        )
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
         tokenizer = Tokenizer.from_file(str(tokenizer_path))
     return tokenizer
+
 
 def get_ds(config):
     # It only has the train split, so we divide it overselves
@@ -149,8 +166,22 @@ def get_ds(config):
     val_ds_size = len(ds_raw) - train_ds_size
     train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
 
-    train_ds = BilingualDataset(train_ds_raw, tokenizer_src, tokenizer_tgt, config['lang_src'], config['lang_tgt'], config['seq_len'])
-    val_ds = BilingualDataset(val_ds_raw, tokenizer_src, tokenizer_tgt, config['lang_src'], config['lang_tgt'], config['seq_len'])
+    train_ds = BilingualDataset(
+        train_ds_raw,
+        tokenizer_src,
+        tokenizer_tgt,
+        config['lang_src'],
+        config['lang_tgt'],
+        config['seq_len'],
+    )
+    val_ds = BilingualDataset(
+        val_ds_raw,
+        tokenizer_src,
+        tokenizer_tgt,
+        config['lang_src'],
+        config['lang_tgt'],
+        config['seq_len'],
+    )
 
     # Find the maximum length of each sentence in the source and target sentence
     max_len_src = 0
@@ -164,16 +195,23 @@ def get_ds(config):
 
     print(f'Max length of source sentence: {max_len_src}')
     print(f'Max length of target sentence: {max_len_tgt}')
-    
 
     train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
     val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True)
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
 
+
 def get_model(config, vocab_src_len, vocab_tgt_len):
-    model = build_transformer(vocab_src_len, vocab_tgt_len, config["seq_len"], config['seq_len'], d_model=config['d_model'])
+    model = build_transformer(
+        vocab_src_len,
+        vocab_tgt_len,
+        config["seq_len"],
+        config['seq_len'],
+        d_model=config['d_model'],
+    )
     return model
+
 
 def train_model(config):
     # Define the device
@@ -184,7 +222,9 @@ def train_model(config):
     Path(config['model_folder']).mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(
+        device
+    )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'], eps=1e-9)
 
@@ -201,7 +241,9 @@ def train_model(config):
         global_step = state['global_step']
         del state
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
+    loss_fn = nn.CrossEntropyLoss(
+        ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1
+    ).to(device)
 
     # define our custom x axis metric
     wandb.define_metric("global_step")
@@ -215,18 +257,20 @@ def train_model(config):
         batch_iterator = tqdm(train_dataloader, desc=f"Processing Epoch {epoch:02d}")
         for batch in batch_iterator:
 
-            encoder_input = batch['encoder_input'].to(device) # (b, seq_len)
-            decoder_input = batch['decoder_input'].to(device) # (B, seq_len)
-            encoder_mask = batch['encoder_mask'].to(device) # (B, 1, 1, seq_len)
-            decoder_mask = batch['decoder_mask'].to(device) # (B, 1, seq_len, seq_len)
+            encoder_input = batch['encoder_input'].to(device)  # (b, seq_len)
+            decoder_input = batch['decoder_input'].to(device)  # (B, seq_len)
+            encoder_mask = batch['encoder_mask'].to(device)  # (B, 1, 1, seq_len)
+            decoder_mask = batch['decoder_mask'].to(device)  # (B, 1, seq_len, seq_len)
 
             # Run the tensors through the encoder, decoder and the projection layer
-            encoder_output = model.encode(encoder_input, encoder_mask) # (B, seq_len, d_model)
-            decoder_output = model.decode(encoder_output, encoder_mask, decoder_input, decoder_mask) # (B, seq_len, d_model)
-            proj_output = model.project(decoder_output) # (B, seq_len, vocab_size)
+            encoder_output = model.encode(encoder_input, encoder_mask)  # (B, seq_len, d_model)
+            decoder_output = model.decode(
+                encoder_output, encoder_mask, decoder_input, decoder_mask
+            )  # (B, seq_len, d_model)
+            proj_output = model.project(decoder_output)  # (B, seq_len, vocab_size)
 
             # Compare the output with the label
-            label = batch['label'].to(device) # (B, seq_len)
+            label = batch['label'].to(device)  # (B, seq_len)
 
             # Compute the loss using a simple cross entropy
             loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1))
@@ -245,16 +289,28 @@ def train_model(config):
             global_step += 1
 
         # Run validation at the end of every epoch
-        run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step)
+        run_validation(
+            model,
+            val_dataloader,
+            tokenizer_src,
+            tokenizer_tgt,
+            config['seq_len'],
+            device,
+            lambda msg: batch_iterator.write(msg),
+            global_step,
+        )
 
         # Save the model at the end of every epoch
         model_filename = get_weights_file_path(config, f"{epoch:02d}")
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'global_step': global_step
-        }, model_filename)
+        torch.save(
+            {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'global_step': global_step,
+            },
+            model_filename,
+        )
 
 
 if __name__ == '__main__':
@@ -266,9 +322,8 @@ if __name__ == '__main__':
     wandb.init(
         # set the wandb project where this run will be logged
         project="pytorch-transformer",
-        
         # track hyperparameters and run metadata
-        config=config
+        config=config,
     )
-    
+
     train_model(config)

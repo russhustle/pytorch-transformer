@@ -1,19 +1,22 @@
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset
+
 
 class BilingualDataset(Dataset):
 
     def __init__(self, ds, tokenizer_src, tokenizer_tgt, src_lang, tgt_lang, seq_len):
         super().__init__()
+        # Initialize the dataset with source and target languages,
+        # tokenizers, and sequence length
         self.seq_len = seq_len
-
         self.ds = ds
         self.tokenizer_src = tokenizer_src
         self.tokenizer_tgt = tokenizer_tgt
         self.src_lang = src_lang
         self.tgt_lang = tgt_lang
 
+        # Define special tokens
+        # sos: start, eos: end, pad: padding
         self.sos_token = torch.tensor([tokenizer_tgt.token_to_id("[SOS]")], dtype=torch.int64)
         self.eos_token = torch.tensor([tokenizer_tgt.token_to_id("[EOS]")], dtype=torch.int64)
         self.pad_token = torch.tensor([tokenizer_tgt.token_to_id("[PAD]")], dtype=torch.int64)
@@ -23,15 +26,16 @@ class BilingualDataset(Dataset):
 
     def __getitem__(self, idx):
         src_target_pair = self.ds[idx]
-        src_text = src_target_pair['translation'][self.src_lang]
-        tgt_text = src_target_pair['translation'][self.tgt_lang]
+        src_text = src_target_pair["translation"][self.src_lang]
+        tgt_text = src_target_pair["translation"][self.tgt_lang]
 
         # Transform the text into tokens
         enc_input_tokens = self.tokenizer_src.encode(src_text).ids
         dec_input_tokens = self.tokenizer_tgt.encode(tgt_text).ids
 
         # Add sos, eos and padding to each sentence
-        enc_num_padding_tokens = self.seq_len - len(enc_input_tokens) - 2  # We will add <s> and </s>
+        # We will add <s> and </s>
+        enc_num_padding_tokens = self.seq_len - len(enc_input_tokens) - 2
         # We will only add <s>, and </s> only on the label
         dec_num_padding_tokens = self.seq_len - len(dec_input_tokens) - 1
 
@@ -78,13 +82,25 @@ class BilingualDataset(Dataset):
         return {
             "encoder_input": encoder_input,  # (seq_len)
             "decoder_input": decoder_input,  # (seq_len)
-            "encoder_mask": (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int(), # (1, 1, seq_len)
-            "decoder_mask": (decoder_input != self.pad_token).unsqueeze(0).int() & causal_mask(decoder_input.size(0)), # (1, seq_len) & (1, seq_len, seq_len),
+            "encoder_mask": (encoder_input != self.pad_token)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .int(),  # (1, 1, seq_len)
+            "decoder_mask": (decoder_input != self.pad_token).unsqueeze(0).int()
+            & causal_mask(decoder_input.size(0)),  # (1, seq_len) & (1, seq_len, seq_len),
             "label": label,  # (seq_len)
             "src_text": src_text,
             "tgt_text": tgt_text,
         }
-    
-def causal_mask(size):
+
+
+def causal_mask(size: int):
+    """Create a causal mask for the decoder input.
+    This mask ensures that the model cannot attend to future tokens.
+    Args:
+        size (int): The size of the mask to create.
+    Returns:
+        torch.Tensor: A causal mask of shape (1, size, size) where the upper triangular part is masked (1) and the lower triangular part is unmasked (0).
+    """
     mask = torch.triu(torch.ones((1, size, size)), diagonal=1).type(torch.int)
     return mask == 0
