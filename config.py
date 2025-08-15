@@ -2,9 +2,10 @@ from pathlib import Path
 
 
 def get_config():
+    """Returns the configuration dictionary for the model."""
     return {
         "batch_size": 8,
-        "num_epochs": 20,
+        "num_epochs": 30,
         "lr": 10**-4,
         "seq_len": 350,
         "d_model": 512,
@@ -19,14 +20,15 @@ def get_config():
     }
 
 
-def get_weights_file_path(config, epoch: str):
+def get_weights_file_path(config: dict, epoch: str) -> str:
+    """Returns the path to the weights file for a given epoch."""
     model_folder = f"{config['datasource']}_{config['model_folder']}"
     model_filename = f"{config['model_basename']}{epoch}.pt"
     return str(Path('.') / model_folder / model_filename)
 
 
 # Find the latest weights file in the weights folder
-def latest_weights_file_path(config):
+def latest_weights_file_path(config: dict) -> str:
     model_folder = f"{config['datasource']}_{config['model_folder']}"
     model_filename = f"{config['model_basename']}*"
     weights_files = list(Path(model_folder).glob(model_filename))

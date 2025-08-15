@@ -2,7 +2,7 @@ from model import build_transformer
 from dataset import BilingualDataset, causal_mask
 from config import get_config, get_weights_file_path, latest_weights_file_path
 
-import torchtext.datasets as datasets
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
@@ -294,7 +294,6 @@ def train_model(config):
         model.train()
         batch_iterator = tqdm(train_dataloader, desc=f"Processing Epoch {epoch:02d}")
         for batch in batch_iterator:
-
             encoder_input = batch['encoder_input'].to(device)  # (b, seq_len)
             decoder_input = batch['decoder_input'].to(device)  # (B, seq_len)
             encoder_mask = batch['encoder_mask'].to(device)  # (B, 1, 1, seq_len)
@@ -311,6 +310,7 @@ def train_model(config):
             label = batch['label'].to(device)  # (B, seq_len)
 
             # Compute the loss using a simple cross entropy
+            # (B, seq_len, tgt_vocab_size) -> (B * seq_len, tgt_vocab_size)
             loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1))
             batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
 
